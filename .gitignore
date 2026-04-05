@@ -3,6 +3,9 @@
 logs/*
 *.pyc
 
+data/*
+checkpoints
+
 tmp_sbatch.sh
 *.log
 

@@ -1,0 +1,17 @@
+name: dogflow
+
+target:
+  _target_: src.models.DoGFlow
+  dynamic_classification_threshold: 0.05
+  max_association_error: 5.0
+  min_association_error: 0.1
+  flow_bounds: [-4, -4, -0.2, 4, 4, 0.2]
+  thresh_eucledian: 3
+  thresh_speed: 1.5 
+  grid_feature_size: 
+  point_cloud_range: [-51.2, -51.2, -3, 51.2, 51.2, 3]
+  voxel_size: [0.2, 0.2, 6]
+  radar_to_lidar_tf_noise: [0, 0, 0, 0, 0, 0] # [x, y, z, roll, pitch, yaw] in meters and degrees
+  
+val_monitor: val/EPE_Three
+is_trainable: False

@@ -57,14 +57,14 @@ def main(cfg):
     precheck_cfg_valid(cfg)
     pl.seed_everything(cfg.seed, workers=True)
 
-    train_dataset = HDF5Dataset(cfg.train_data, n_frames=cfg.num_frames, dufo=(cfg.loss_fn == 'seflowLoss'))
+    train_dataset = HDF5Dataset(cfg.train_data, n_frames=cfg.num_frames, dynamic_classifier=cfg.dynamic_classifier, pseudo_labels=cfg.pseudo_labels, gt_fraction=cfg.gt_fraction)
     train_loader = DataLoader(train_dataset,
                               batch_size=cfg.batch_size,
                               shuffle=True,
                               num_workers=cfg.num_workers,
                               collate_fn=collate_fn_pad,
                               pin_memory=True)
-    val_loader = DataLoader(HDF5Dataset(cfg.val_data, n_frames=cfg.num_frames),
+    val_loader = DataLoader(HDF5Dataset(cfg.val_data, n_frames=cfg.num_frames, gt_fraction=1),
                             batch_size=cfg.batch_size,
                             shuffle=False,
                             num_workers=cfg.num_workers,
@@ -133,8 +133,18 @@ def main(cfg):
         print("Initiating wandb and trainer successfully.  ^V^ ")
         print(f"We will use {cfg.gpus} GPUs to train the model. Check the checkpoints in {output_dir} checkpoints folder.")
         print("Total Train Dataset Size: ", len(train_dataset))
-        if cfg.add_seloss is not None and cfg.loss_fn == 'seflowLoss':
+        if cfg.pseudo_labels==None and cfg.gt_fraction>0:
+            print(f"Note: We are in **supervised** training now.")
+            print(f"{cfg.gt_fraction*100:.1f}% of GT data used for training.")
+        elif cfg.pseudo_labels!=None and cfg.gt_fraction>0:
+            print(f"Note: We are in **semi-supervised** training now.")
+            print(f"{cfg.pseudo_labels} used as pseudo label.")
+            print(f"{cfg.gt_fraction*100:.1f}% of additional GT data used for training.")
+        else:
             print(f"Note: We are in **self-supervised** training now. No ground truth label is used.")
+            print(f"{cfg.pseudo_labels} used as pseudo label.")
+        if cfg.add_seloss is not None and cfg.loss_fn == 'seflowLoss':
+            print(f"{cfg.dynamic_classifier} used as dynamic_classifier.")
             print(f"We will use these loss items in {cfg.loss_fn}: {cfg.add_seloss}")
         print("-"*40+"\n")
 

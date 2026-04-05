@@ -8,8 +8,8 @@ slurm_id: 00000
 wandb_mode: offline # [offline, disabled, online]
 wandb_project_name: seflow
 
-train_data: /home/kin/data/av2/preprocess_v2/demo/sensor/train
-val_data: /home/kin/data/av2/preprocess_v2/demo/sensor/val
+train_data: /home/ajinkya/datasets/truckscenes/man-truckscenes/preprocess/train
+val_data: /home/ajinkya/datasets/truckscenes/man-truckscenes/preprocess/val
 
 output: ${model.name}-${slurm_id}
 
@@ -24,6 +24,10 @@ sync_bn: true
 batch_size: 1
 epochs: 3
 gradient_clip_val: 5.0
+dynamic_classifier:  # ['radar', 'dufo']
+# use_pseudo_labels: False
+pseudo_labels:  # [nsfp, icpflow, dogflow]
+gt_fraction: 1. # [0,1] fraction of gt flow to be used in training, default 1 for supervised learning
 
 # optimizer ==> Adam
 lr: 2e-6
@@ -33,8 +37,8 @@ add_seloss: # {chamfer_dis: 1.0, static_flow_loss: 1.0, dynamic_chamfer_dis: 1.0
 # log settings
 seed: 42069
 log_every: 10 # steps epochs*dataset_size/batch_size
-val_every: 3 # epochs
-save_top_model: 5 # top_k model will be saved.
+val_every: 1 # epochs
+save_top_model: 1 # top_k model will be saved.
 
 # -----> Model and Task Parameters
 voxel_size: [0.2, 0.2, 6]

@@ -830,9 +830,10 @@ from dataclasses import dataclass
 class BaseSplitValue:
     name: str
     avg_epe: float
-    avg_speed: float
-    speed_thresholds: Tuple[float, float]
+    avg_range: float
+    thresholds_range: Tuple[float, float]
     count: int
+    dy_iou: Optional[float] = 0.
     def __eq__(self, __value: object) -> bool:
         return hash(self) == hash(__value)
     
@@ -844,8 +845,9 @@ def compute_bucketed_epe(
 ):
     storage_error_matrix = []
     # bucket_max_speed, num_buckets, distance_thresholds set is from: eval/bucketed_epe.py#L226
-    bucket_edges = np.concatenate([np.linspace(0, 2.0, 51), [np.inf]])
-    speed_thresholds = list(zip(bucket_edges, bucket_edges[1:]))
+    # HARCODE(Qingwen): if change it please search globally for the same value
+    speed_splits = np.concatenate([np.linspace(0, 2.0, 51), [np.inf]])
+    speed_thresholds = list(zip(speed_splits, speed_splits[1:]))
 
     gt_speeds = np.linalg.norm(gt_flow, axis=-1)
     error_flow = np.linalg.norm(pred_flow - gt_flow, axis=-1)
@@ -864,8 +866,170 @@ def compute_bucketed_epe(
             count_pts = mask.sum()
             if count_pts == 0:
                 continue
-            avg_epe = error_flow[mask].mean()
-            avg_speed = gt_speeds[mask].mean()
-            storage_error_matrix.append(BaseSplitValue(cats_name, avg_epe, avg_speed, (min_speed_threshold, max_speed_threshold), count_pts))
+            storage_error_matrix.append(BaseSplitValue(cats_name, error_flow[mask].mean(), gt_speeds[mask].mean(), (min_speed_threshold, max_speed_threshold), count_pts))
             
     return storage_error_matrix
+
+def compute_ssf_metrics(
+    pc0_dis: NDArrayFloat,
+    pred_flow: NDArrayFloat,
+    pred_dynamic: NDArrayBool,
+    gt_flow: NDArrayFloat,
+    is_dynamic: NDArrayBool,
+    is_valid: NDArrayBool,
+    dynamic_speed = 1.4 # (m/s). since pedestrian walking speed normally is 1.4m/s
+) -> Dict[str, List[Any]]:
+    """
+    Compute metrics based on distance for a given example and package them into a list to be put into a DataFrame.
+    Args:
+        pc0_dis: (N,3) point distance to ego vehicle.
+        pred_flow: (N,3) Predicted flow vectors.
+        gt_flow: (N,3) Ground truth flow vectors.
+        is_valid: (N,) True for a point if its ground truth flow was successfully computed. Normally we will exclude the points belong to ground etc.
+    Returns:
+        A dictionary of columns to create a long-form DataFrame of the results from.
+        One row for each subset in the breakdown.
+    """
+    storage_error_matrix = []
+    # HARCODE(Qingwen): if change it please search globally for the same value
+    distance_split = [0, 35, 50, 75, 100, np.inf]
+    gt_speeds = np.linalg.norm(gt_flow, axis=-1) * 10 # since our sensor is 10Hz
+    range_thresholds = list(zip(distance_split, distance_split[1:]))
+    for r_idx, (min_range, max_range) in enumerate(range_thresholds):
+        mask = (pc0_dis >= min_range) & (pc0_dis < max_range) & is_valid
+        dy_iou: DefaultDict[str, List[Any]] = defaultdict(list)
+        # for seg_metric_type in SegmentationMetricType:
+        #     dy_iou[seg_metric_type] += [
+        #         compute_segmentation_metrics(
+        #             pred_dynamic[mask], is_dynamic[mask], seg_metric_type
+        #         )
+        #     ]
+        # Dynamic_IoU = sum(dy_iou['TP']) / (sum(dy_iou['TP']) + sum(dy_iou['FP']) + sum(dy_iou['FN'])+EPS)
+        gt_speed_, pred_flow_, gt_flow_, pc0_dis_ = gt_speeds[mask], pred_flow[mask], gt_flow[mask], pc0_dis[mask]
+        # static and dynamic split based on the ground truth speed
+        dynamic_mask = gt_speed_ >= dynamic_speed 
+        static_mask = ~dynamic_mask
+        for motion, m_mask in [("Static", static_mask), ("Dynamic", dynamic_mask)]:
+            count_pts = m_mask.sum()
+            if count_pts == 0:
+                continue
+            epe = np.linalg.norm(pred_flow_ - gt_flow_, axis=-1)[m_mask].mean()
+            avg_dis = pc0_dis_[m_mask].mean()
+            for seg_metric_type in SegmentationMetricType:
+                dy_iou[seg_metric_type] += [
+                    compute_segmentation_metrics(
+                        pred_dynamic[mask][m_mask], is_dynamic[mask][m_mask], seg_metric_type
+                    )
+                ]
+            if motion == "Dynamic":
+                Dynamic_IoU = sum(dy_iou['TP']) / (sum(dy_iou['TP']) + sum(dy_iou['FP']) + sum(dy_iou['FN'])+EPS)
+                storage_error_matrix.append(BaseSplitValue(motion, epe, avg_dis, (min_range, max_range), count_pts, Dynamic_IoU))
+            else:
+                storage_error_matrix.append(BaseSplitValue(motion, epe, avg_dis, (min_range, max_range), count_pts))
+            # storage_error_matrix.append(BaseSplitValue(motion, epe, avg_dis, (min_range, max_range), count_pts)    
+    return storage_error_matrix
+
+## ====> nuScenes to Argoverse Mapping
+NusNamMap = {
+    'noise': 'NONE',
+    'animal': 'ANIMAL',
+    'human.pedestrian.adult': 'PEDESTRIAN',
+    'human.pedestrian.child': 'PEDESTRIAN',
+    'human.pedestrian.construction_worker': 'PEDESTRIAN',
+    'human.pedestrian.personal_mobility': 'PEDESTRIAN',
+    'human.pedestrian.police_officer': 'PEDESTRIAN',
+    'human.pedestrian.stroller': 'STROLLER',
+    'human.pedestrian.wheelchair': 'WHEELCHAIR',
+    'movable_object.barrier': 'NONE',
+    'movable_object.debris': 'NONE',
+    'movable_object.pushable_pullable': 'NONE',
+    'movable_object.trafficcone': 'CONSTRUCTION_CONE',
+    'static_object.bicycle_rack': 'NONE',
+    'vehicle.bicycle': 'BICYCLE',
+    'vehicle.bus.bendy': 'ARTICULATED_BUS',
+    'vehicle.bus.rigid': 'BUS',
+    'vehicle.car': 'REGULAR_VEHICLE',
+    'vehicle.construction': 'LARGE_VEHICLE',
+    'vehicle.emergency.ambulance': 'LARGE_VEHICLE',
+    'vehicle.emergency.police': 'REGULAR_VEHICLE',
+    'vehicle.motorcycle': 'MOTORCYCLE',
+    'vehicle.trailer': 'VEHICULAR_TRAILER',
+    'vehicle.truck': 'TRUCK',
+    'flat.driveable_surface': 'NONE',
+    'flat.other': 'NONE',
+    'flat.sidewalk': 'NONE',
+    'flat.terrain': 'NONE',
+    'static.manmade': 'NONE',
+    'static.other': 'NONE',
+    'static.vegetation': 'NONE',
+    'vehicle.ego': 'NONE'
+}
+
+
+## ====> MAN to Argoverse Mapping
+ManNamMap = {
+    "animal": 'NONE',
+    "human.pedestrian.adult": 'PEDESTRIAN',
+    "human.pedestrian.child": 'PEDESTRIAN',
+    "human.pedestrian.construction_worker": 'PEDESTRIAN',
+    "human.pedestrian.personal_mobility": 'PEDESTRIAN',
+    "human.pedestrian.police_officer": 'PEDESTRIAN',
+    "human.pedestrian.stroller": 'PEDESTRIAN',
+    "human.pedestrian.wheelchair": 'PEDESTRIAN',
+    "movable_object.barrier": 'NONE',
+    "movable_object.debris": 'NONE',
+    "movable_object.pushable_pullable": 'NONE',
+    "movable_object.trafficcone": 'NONE',
+    "static_object.bicycle_rack": 'NONE',
+    "static_object.traffic_sign": 'SIGN',
+    "vehicle.bicycle": 'BICYCLE',
+    "vehicle.bus.bendy": 'ARTICULATED_BUS',
+    "vehicle.bus.rigid": 'BUS',
+    "vehicle.car": 'REGULAR_VEHICLE',
+    "vehicle.construction": 'LARGE_VEHICLE',
+    "vehicle.emergency.ambulance": 'LARGE_VEHICLE',
+    "vehicle.emergency.police": 'REGULAR_VEHICLE',
+    "vehicle.motorcycle": 'MOTORCYCLE',
+    "vehicle.trailer": 'VEHICULAR_TRAILER',
+    "vehicle.truck": 'TRUCK',
+    "vehicle.train": 'NONE',
+    "vehicle.other": 'NONE',
+    "vehicle.ego_trailer": 'NONE',
+}
+
+## ====> Aeva to Argoverse Mapping
+AevaNamMap = {
+    # Vehicles
+    "car": "REGULAR_VEHICLE",
+    "bus": "BUS",
+    "truck": "TRUCK",
+    "trailer": "VEHICULAR_TRAILER",
+    "vehicle_on_rails": "NONE",  # e.g., trains
+    "other_vehicle": "NONE",
+
+    # Persons
+    "pedestrian": "PEDESTRIAN",
+    "motorcyclist": "PEDESTRIAN",
+    "bicyclist": "PEDESTRIAN",
+
+    # Objects
+    "bicycle": "BICYCLE",
+    "motorcycle": "MOTORCYCLE",
+    "animal": "NONE",
+    "traffic_item": "SIGN",
+    "traffic_sign": "SIGN",
+
+    # Structures
+    "pole_trunk": "NONE",
+    "building": "NONE",
+    "other_structure": "NONE",
+    "vegetation": "NONE",
+
+    # Surfaces
+    "road": "NONE",
+    "lane_boundary": "NONE",
+    "road_marking": "NONE",
+    "reflective_markers": "NONE",
+    "sidewalk": "NONE",
+    "other_ground": "NONE",
+}

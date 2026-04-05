@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 
 @torch.no_grad()
 def cal_pose0to1(pose0: torch.Tensor, pose1: torch.Tensor):
@@ -13,6 +14,18 @@ def cal_pose0to1(pose0: torch.Tensor, pose1: torch.Tensor):
     pose1_inv[:3,3] = (pose1[:3,:3].T * -pose1[:3,3]).sum(axis=1)
     pose_0to1 = pose1_inv @ pose0.type(torch.float64)
     return pose_0to1.type(torch.float32)
+
+def cal_pose0to1_np(pose0: np.array, pose1: np.array):
+    """
+    Note(Qingwen 2023-12-05 11:09):
+    Don't know why but it needed set the pose to float64 to calculate the inverse 
+    otherwise it will be not expected result....
+    """
+    pose1_inv = np.eye(4, dtype=np.float64)
+    pose1_inv[:3,:3] = pose1[:3,:3].T
+    pose1_inv[:3,3] = (pose1[:3,:3].T * -pose1[:3,3]).sum(axis=1)
+    pose_0to1 = pose1_inv @ pose0.astype(np.float64)
+    return pose_0to1.astype(np.float32)
 
 class ConvWithNorms(nn.Module):
 

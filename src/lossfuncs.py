@@ -16,7 +16,7 @@ from src.utils.av2_eval import CATEGORY_TO_INDEX, BUCKETED_METACATAGORIES
 
 # NOTE(Qingwen 24/07/06): squared, so it's sqrt(4) = 2m, in 10Hz the vel = 20m/s ~ 72km/h
 # If your scenario is different, may need adjust this TRUNCATED to 80-120km/h vel.
-TRUNCATED_DIST = 4
+TRUNCATED_DIST = 4 # 16
 
 
 def seflowLoss(res_dict, timer=None):
@@ -31,8 +31,9 @@ def seflowLoss(res_dict, timer=None):
     pseudo_pc1from0 = pc0 + est_flow
 
     unique_labels = torch.unique(pc0_label)
-    pc0_dynamic = pc0[pc0_label > 0]
-    pc1_dynamic = pc1[pc1_label > 0]
+    pc0_dynamic = pc0[res_dict['pc0_dynamic']]
+    pc1_dynamic = pc1[res_dict['pc1_dynamic']]
+
     # fpc1_dynamic = pseudo_pc1from0[pc0_label > 0]
     # NOTE(Qingwen): since we set THREADS_PER_BLOCK is 256
     have_dynamic_cluster = (pc0_dynamic.shape[0] > 256) & (pc1_dynamic.shape[0] > 256)
@@ -49,23 +50,29 @@ def seflowLoss(res_dict, timer=None):
     # timer[5][2].start("DynamicChamferDistance")
     dynamic_chamfer_dis = torch.tensor(0.0, device=est_flow.device)
     if have_dynamic_cluster:
-        dynamic_chamfer_dis += MyCUDAChamferDis(pseudo_pc1from0[pc0_label>0], pc1_dynamic, truncate_dist=TRUNCATED_DIST)
+        dynamic_chamfer_dis += MyCUDAChamferDis(pseudo_pc1from0[res_dict['pc0_dynamic']], pc1_dynamic, truncate_dist=TRUNCATED_DIST)
     # timer[5][2].stop()
 
-    # third item loss: exclude static points' flow
-    # NOTE(Qingwen): add in the later part on label==0
-    static_cluster_loss = torch.tensor(0.0, device=est_flow.device)
+    # # third item loss: exclude static points' flow
+    # # NOTE(Qingwen): add in the later part on label==0
+    # static_cluster_loss = torch.tensor(0.0, device=est_flow.device)
+    static_cluster_loss = torch.linalg.vector_norm(est_flow[~res_dict['pc0_dynamic'], :], dim=-1).mean()
     
     # fourth item loss: same label points' flow should be the same
     # timer[5][3].start("SameClusterLoss")
     moved_cluster_loss = torch.tensor(0.0, device=est_flow.device)
     moved_cluster_norms = torch.tensor([], device=est_flow.device)
     for label in unique_labels:
+        # label mask
         mask = pc0_label == label
-        if label == 0:
-            # Eq. 6 in the paper
-            static_cluster_loss += torch.linalg.vector_norm(est_flow[mask, :], dim=-1).mean()
-        elif label > 0 and have_dynamic_cluster:
+        # create dynamic cluster mask
+        mask = mask & res_dict['pc0_dynamic']
+        # # if label == 0:
+        # if mask.sum() <= 0:
+        #     # Eq. 6 in the paper
+        #     static_cluster_loss += torch.linalg.vector_norm(est_flow[mask, :], dim=-1).mean()
+        # # elif label > 0 and have_dynamic_cluster:
+        if mask.sum() > 0 and have_dynamic_cluster:
             cluster_id_flow = est_flow[mask, :]
             cluster_nnd = raw_dist0[mask]
             if cluster_nnd.shape[0] <= 0:
@@ -74,7 +81,8 @@ def seflowLoss(res_dict, timer=None):
             # Eq. 8 in the paper
             sorted_idxs = torch.argsort(cluster_nnd, descending=True)
             nearby_label = pc1_label[raw_idx0[mask][sorted_idxs]] # nonzero means dynamic in label
-            non_zero_valid_indices = torch.nonzero(nearby_label > 0)
+            # non_zero_valid_indices = torch.nonzero(nearby_label > 0)
+            non_zero_valid_indices = torch.arange(nearby_label.shape[0])[:,None]
             if non_zero_valid_indices.shape[0] <= 0:
                 continue
             max_idx = sorted_idxs[non_zero_valid_indices.squeeze(1)[0]]

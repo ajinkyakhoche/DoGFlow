@@ -25,10 +25,10 @@ MIN_AXIS_RANGE = 2 # HARD CODED: remove ego vehicle points
 MAX_AXIS_RANGE = 50 # HARD CODED: remove far away points
 
 def run_cluster(
-    data_dir: str ="/home/kin/data/av2/preprocess/sensor/train",
-    scene_range: list = [0, 1],
+    data_dir: str ="/home/ajinkya/datasets/truckscenes/man-truckscenes/preprocess/val",
+    scene_range: list = [-1],
     interval: int = 1, # useless here, just for the same interface args
-    overwrite: bool = False,
+    overwrite: bool = True,
 ):
     data_path = Path(data_dir)
     dataset = HDF5Data(data_path)
@@ -78,10 +78,11 @@ def run_cluster(
     print(f"Data inside {str(data_path)} finished. Check the result with vis() function if you want to visualize them.")
 
 def run_dufo(
-    data_dir: str ="/home/kin/data/av2/preprocess/sensor/train",
-    scene_range: list = [0, 1],
+    data_dir: str ="/home/ajinkya/datasets/truckscenes/man-truckscenes/preprocess/val",
+    scene_range: list = [-1], #list = [0, 1],
     interval: int = 1, # interval frames to run dufomap
-    overwrite: bool = False,
+    overwrite: bool = True,
+    min_points: int = 20,
 ):
     data_path = Path(data_dir)
     dataset = HDF5Data(data_path)
@@ -104,12 +105,16 @@ def run_dufo(
             continue
 
         mydufo = dufomap(0.2, 0.2, 1, num_threads=12) # resolution, d_s, d_p, hit_extension
-        mydufo.setCluster(0, 20, 0.2) # depth=0, min_points=20, max_dist=0.2
+        mydufo.setCluster(0, min_points, 0.2) # depth=0, min_points=20, max_dist=0.2
 
+        first_pose = np.eye(4)
         print(f"==> Scene {scene_id} start, data path: {data_path}")
         for i in tqdm(range(bounds["min_index"], bounds["max_index"]+1), desc=f"Dufo run: {scene_in_data_index}/{len(all_scene_ids)}", ncols=80):
             if interval != 1 and i % interval != 0 and (i + interval//2 < bounds["max_index"] or i - interval//2 > bounds["min_index"]):
+                first_pose = dataset[i]['pose0']
                 continue
+            if np.array_equal(first_pose, np.eye(4)):
+                first_pose = dataset[i]['pose0']
             data = dataset[i]
             assert data['scene_id'] == scene_id, f"Check the data, scene_id {scene_id} is not consistent in {i}th data in {scene_in_data_index}th scene."
             # HARD CODED: remove points outside the range
@@ -118,8 +123,9 @@ def run_dufo(
                     (norm_pc0>MIN_AXIS_RANGE) & 
                     (norm_pc0<MAX_AXIS_RANGE)
             )
-            pose_array = transform_to_array(data['pose0'])
-            mydufo.run(data['pc0'][range_mask], pose_array, cloud_transform = True)
+            # transform to local map frame
+            pose_array = transform_to_array(np.linalg.inv(first_pose) @ data['pose0'])
+            mydufo.run(data['pc0'][:,:3][range_mask], pose_array, cloud_transform = True)
 
         # finished integrate, start segment, needed since we have map.label inside dufo
         mydufo.oncePropagateCluster(if_cluster = True, if_propagate=True)
@@ -127,8 +133,9 @@ def run_dufo(
             data = dataset[i]
             pc0 = data['pc0']
             gm0 = data['gm0']
-            pose_array = transform_to_array(data['pose0'])
-            dufo_label = np.array(mydufo.segment(pc0, pose_array, cloud_transform = True))
+            # transform to local map frame
+            pose_array = transform_to_array(np.linalg.inv(first_pose) @ data['pose0'])
+            dufo_label = np.array(mydufo.segment(pc0[:,:3], pose_array, cloud_transform = True))
             dufo_labels = np.zeros(pc0.shape[0], dtype= np.uint8)
             dufo_labels[~gm0] = dufo_label[~gm0]
 

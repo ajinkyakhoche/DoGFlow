@@ -1,215 +1,125 @@
-<p align="center">
-    <!-- pypi-strip -->
-    <picture>
-    <!-- <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Pointcept/Pointcept/main/docs/logo_dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/Pointcept/Pointcept/main/docs/logo.png"> -->
-    <!-- /pypi-strip -->
-    <img alt="opensceneflow" src="assets/docs/logo.png" width="600">
-    <!-- pypi-strip -->
-    </picture><br>
-    <!-- /pypi-strip -->
-</p>
+# DoGFlow: Self-Supervised LiDAR Scene Flow via Cross-Modal Doppler Guidance
 
-OpenSceneFlow is a codebase for point cloud scene flow estimation. 
-It is also an official implementation of the following paper (sored by the time of publication):
+[![Paper](https://img.shields.io/badge/arXiv-2508.18506-b31b1b.svg)](https://arxiv.org/abs/2508.18506)
+[![Website](https://img.shields.io/badge/Project_Page-online-blue)](https://ajinkyakhoche.github.io/DogFlow/)
+[![Video](https://img.shields.io/badge/video-YouTube-FF0000?logo=youtube&logoColor=white)](https://youtu.be/o6PElKWVWVk)
 
-<!-- - **Flow4D: Leveraging 4D Voxel Network for LiDAR Scene Flow Estimation**  
-*Jaeyeul Kim, Jungwan Woo, Ukcheol Shin, Jean Oh, Sunghoon Im*  
-IEEE Robotics and Automation Letters (**RA-L**) 2025  
-[ Backbone ] [ Supervised ] - [ [arXiv](https://arxiv.org/abs/2407.07995) ] [ [Project](https://github.com/dgist-cvlab/Flow4D) ] &rarr; [here](#flow4d) -->
+<img width="1061" height="849" alt="DoGFlow teaser" src="https://github.com/user-attachments/assets/386de8fa-5fdf-4ce3-9517-4a2f07480407" />
 
-- **SSF: Sparse Long-Range Scene Flow for Autonomous Driving**  
-*Ajinkya Khoche, Qingwen Zhang, Laura Pereira Sánchez, Aron Asefaw, Sina Sharif Mansouri and Patric Jensfelt*  
-International Conference on Robotics and Automation (**ICRA**) 2025  
-[ Backbone ] [ Supervised ] - [ [arXiv](https://arxiv.org/abs/2501.17821) ] [ [Project](https://github.com/KTH-RPL/SSF) ] &rarr; [here](#ssf)
+Official code release for the RA-L 2026 paper **DoGFlow: Self-Supervised LiDAR Scene Flow via Cross-Modal Doppler Guidance**.
 
-- **SeFlow: A Self-Supervised Scene Flow Method in Autonomous Driving**  
-*Qingwen Zhang, Yi Yang, Peizheng Li, Olov Andersson, Patric Jensfelt*  
-European Conference on Computer Vision (**ECCV**) 2024  
-[ Strategy ] [ Self-Supervised ] - [ [arXiv](https://arxiv.org/abs/2407.01702) ] [ [Project](https://github.com/KTH-RPL/SeFlow) ] &rarr; [here](#seflow)
+This repository supports:
+- Training-free DoGFlow inference and evaluation on the MAN TruckScenes dataset,
+- Pseudo-label generation via radar-guided scene flow,
+- Training and evaluation of LiDAR scene flow models using DoGFlow pseudo-labels.
 
-- **DeFlow: Decoder of Scene Flow Network in Autonomous Driving**  
-*Qingwen Zhang, Yi Yang, Heng Fang, Ruoyu Geng, Patric Jensfelt*  
-International Conference on Robotics and Automation (**ICRA**) 2024  
-[ Backbone ] [ Supervised ] - [ [arXiv](https://arxiv.org/abs/2401.16122) ] [ [Project](https://github.com/KTH-RPL/DeFlow) ] &rarr; [here](#deflow)
+DoGFlow is released within the [KTH-RPL/OpenSceneFlow](https://github.com/KTH-RPL/OpenSceneFlow) codebase and reuses its data processing, training, and visualization utilities.
 
-
-
-<details> <summary>🎁 <b>One repository, All methods!</b> </summary>
-
-- [x] [FastFlow3d](https://arxiv.org/abs/2103.01306): RA-L 2021
-- [x] [ZeroFlow](https://arxiv.org/abs/2305.10424): ICLR 2024, their pre-trained weight can covert into our format easily through [the script](tools/zerof2ours.py).
-- [ ] [NSFP](https://arxiv.org/abs/2111.01253): NeurIPS 2021, faster 3x than original version because of [our CUDA speed up](assets/cuda/README.md), same (slightly better) performance. Done coding, public after review.
-- [ ] [FastNSF](https://arxiv.org/abs/2304.09121): ICCV 2023. Done coding, public after review.
-- [ ] [Flow4D](https://arxiv.org/abs/2407.07995): Under Review. Done coding, public after review.
-- [ ] ... more on the way
-
-</details>
-
-## Citation
-
-If you find *OpenSceneFlow* useful to your research, please cite our work as encouragement. (੭ˊ꒳​ˋ)੭✧
-
-```
-@inproceedings{zhang2024seflow,
-  author={Zhang, Qingwen and Yang, Yi and Li, Peizheng and Andersson, Olov and Jensfelt, Patric},
-  title={{SeFlow}: A Self-Supervised Scene Flow Method in Autonomous Driving},
-  booktitle={European Conference on Computer Vision (ECCV)},
-  year={2024},
-  pages={353–369},
-  organization={Springer},
-  doi={10.1007/978-3-031-73232-4_20},
-}
-@inproceedings{zhang2024deflow,
-  author={Zhang, Qingwen and Yang, Yi and Fang, Heng and Geng, Ruoyu and Jensfelt, Patric},
-  booktitle={2024 IEEE International Conference on Robotics and Automation (ICRA)}, 
-  title={{DeFlow}: Decoder of Scene Flow Network in Autonomous Driving}, 
-  year={2024},
-  pages={2105-2111},
-  doi={10.1109/ICRA57147.2024.10610278}
-}
-```
-
----
-
-📜 Changelog:
-
-- 🎁 2025/1/28 14:58: Update the codebase to collect all methods in one repository reference [Pointcept](https://github.com/Pointcept/Pointcept) repo.
-- 🤗 2024/11/18 16:17: Update model and demo data download link through HuggingFace, Personally I found `wget` from HuggingFace link is much faster than Zenodo.
-- 2024/09/26 16:24: All codes already uploaded and tested. You can to try training directly by downloading (through [HuggingFace](https://huggingface.co/kin-zhang/OpenSceneFlow)/[Zenodo](https://zenodo.org/records/13744999)) demo data or pretrained weight for evaluation. 
-- 2024/07/24: Merging SeFlow & DeFlow code together, lighter setup and easier running.
-- 🔥 2024/07/02: Check the self-supervised version in our new ECCV'24 [SeFlow](https://github.com/KTH-RPL/SeFlow). The 1st ranking in new leaderboard among self-supervise methods.
+## Updates
+- 2026/01/18: DoGFlow accepted to IEEE Robotics and Automation Letters (RA-L).
+- 2026/04/05: Initial code release.
 
 ## 0. Installation
 
-**Environment**: Setup
+We use conda to manage the environment, you can install it follow [here](assets/README.md#system). Then create the base environment with the following command [5~15 minutes]:
 
 ```bash
-git clone --recursive https://github.com/KTH-RPL/OpenSceneFlow.git
-cd OpenSceneFlow && mamba env create -f environment.yaml
+git clone --recursive https://github.com/ajinkyakhoche/DoGFlow.git
+cd DoGFlow && conda env create -f environment.yaml
+
+# You may need export your LD_LIBRARY_PATH with env lib
+# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/kin/mambaforge/lib
 ```
 
 CUDA package (need install nvcc compiler), the compile time is around 1-5 minutes:
 ```bash
-mamba activate opensf
+mamba activate dogflow
 # CUDA already install in python environment. I also tested others version like 11.3, 11.4, 11.7, 11.8 all works
 cd assets/cuda/mmcv && python ./setup.py install && cd ../../..
 cd assets/cuda/chamfer3D && python ./setup.py install && cd ../../..
+cd assets/cuda/histlib/ && python ./setup.py install && cd ../../..
 ```
-
-<!-- Or you always can choose [Docker](https://en.wikipedia.org/wiki/Docker_(software)) which isolated environment and free yourself from installation, you can pull it by. 
-If you have different arch, please build it by yourself `cd OpenSceneFlow && docker build -t zhangkin/opensf` by going through [build-docker-image](assets/README.md/#build-docker-image) section.
-```bash
-# option 1: pull from docker hub
-docker pull zhangkin/seflow
-
-# run container
-docker run -it --gpus all -v /dev/shm:/dev/shm -v /home/kin/data:/home/kin/data --name seflow zhangkin/seflow /bin/zsh
-``` -->
-
 
 ## 1. Data Preparation
 
-Check [dataprocess/README.md](dataprocess/README.md#argoverse-20) for downloading tips for the raw Argoverse 2 dataset and [data preprocessed to h5 files commands](dataprocess/README.md#process).
-Another good way to try code quickly is using **mini processed dataset**, we directly provide one scene inside `train` and `val`. 
-It already converted to `.h5` format and processed with the label data. 
-You can download it from [Zenodo](https://zenodo.org/records/13744999/files/demo_data.zip)/[HuggingFace](https://huggingface.co/kin-zhang/OpenSceneFlow/blob/main/demo_data.zip) and extract it to the data folder. 
-Then you can directly use this mini processed demo data to run the [training script](#2-quick-start).
+Please refer to the [OpenSceneFlow](https://github.com/KTH-RPL/OpenSceneFlow?tab=readme-ov-file#1-data-preparation) for raw data download and h5py files preparation.
 
+- If you have setup the MAN TruckScenes dataset correctly, simply run [dataprocess/extract_man.py](dataprocess/extract_man.py) after modifying the fields `data_dir` and `output_dir`
+
+- Pre-compute noise-resistant LiDAR cluster labels 
 ```bash
-wget https://huggingface.co/kin-zhang/OpenSceneFlow/resolve/main/demo_data.zip
-unzip demo_data.zip -p /home/kin/data/av2
+python process_nr_lidar_clustering.py --data-dir ${data_path}/[mini,train,val,test]
 ```
 
-## 2. Quick Start
+## 2. Training-Free Evaluation
 
-<!-- ### Flow4D -->
-
-<!-- ### SSF -->
-
-### SeFlow
-
-Train SeFlow needed to specify the loss function, we set the config of our best model in the leaderboard. [Runtime: Around 11 hours in 4x A100 GPUs.]
+To evaluate DoGFlow, run:
 
 ```bash
-python train.py model=deflow lr=2e-4 epochs=9 batch_size=16 loss_fn=seflowLoss "add_seloss={chamfer_dis: 1.0, static_flow_loss: 1.0, dynamic_chamfer_dis: 1.0, cluster_based_pc0pc1: 1.0}" "model.target.num_iters=2" "model.val_monitor=val/Dynamic/Mean"
+python eval.py model=dogflow dataset_path=${data_path} weather=<WEATHER>
 ```
 
-Pretrained weight can be downloaded through:
+- We also provide implementations for NSFP, FastNSF and ICPFlow. Please replace the model tag to [nsfp, fastnsf, icpflow]
+- The `weather` tag accepts [all_weather, bad_weather, clear, overcast, rain, snow, hail, fog, other_weather]. 
+- We focus on the range-wise EPE as well as IoU metric. For instance, running DoGFlow on TruckScenes validation set containing snow weather gives:
+
+```SSF Metric on Distance-based:
+| Distance   |     Static |   Dynamic |   NumPointsStatic |   NumPointsDynamic |   DynamicIOU |
+|------------+------------+-----------+-------------------+--------------------+--------------|
+| 0-35       | 0.0445699  |  0.34014  |       4.09337e+06 |        1.08394e+06 |     0.825005 |
+| 35-50      | 0.00308036 |  0.924955 |  485464           |     6019           |     0.805542 |
+| 50-75      | 0.00186762 |  1.09663  |  281349           |     3794           |     0.648605 |
+| 75-100     | 0.0032783  |  1.12325  |  130683           |     1761           |     0.600462 |
+| 100-inf    | 0.00357058 |  1.01682  |  229243           |     1359           |     0.518419 |
+| Mean       | 0.0112734  |  0.900359 |     nan           |      nan           |     0.679607 |
+```
+
+The script also reports the Three-Way EPE, Dynamic Normalized EPE. 
+
+## 3. Training on pseudo labels 
+
+- Compute pseudo labels on training set of truckscenes. (tip: this can take time, set `overwrite=False` to avoid starting from scratch):
 ```bash
-wget https://huggingface.co/kin-zhang/OpenSceneFlow/resolve/main/seflow_best.ckpt
+python save.py model=dogflow dataset_path="${data_path}/train" overwrite=True
 ```
 
-### DeFlow
-
-Train DeFlow with the leaderboard submit config. [Runtime: Around 6-8 hours in 4x A100 GPUs.] Please change `batch_size&lr` accoordingly if you don't have enough GPU memory. (e.g. `batch_size=6` for 24GB GPU)
-
+- Run the training with the following command (modify the data path accordingly):
 ```bash
-python train.py model=deflow lr=2e-4 epochs=15 batch_size=16 loss_fn=deflowLoss
+python train.py train_data="${data_path}/train" val_data="${data_path}/val" model=ssf lr=8e-3 epochs=100 loss_fn=deflowLoss point_cloud_range="[-204.8, -204.8, -3, 204.8, 204.8, 3]" gt_fraction=0 pseudo_labels=dogflow
 ```
 
-Pretrained weight can be downloaded through:
+- To combine ground truth with pseudo labels during training, i.e. for semi-supervised training, increase gt_fraction.
+
+- Please check assets/slurm/ for exact settings used in the paper.
+
+### Evaluation
+
+TODO: Upload pretrained weights link for MAN TruckScenes.
+
+You can also run the evaluation by yourself with the following command with trained weights:
 ```bash
-wget https://huggingface.co/kin-zhang/OpenSceneFlow/resolve/main/deflow_best.ckpt
+python eval.py checkpoint=${path_to_pretrained_weights} dataset_path=${data_path}
 ```
 
-## 3. Evaluation
+### Visualization
 
-You can view Wandb dashboard for the training and evaluation results or upload result to online leaderboard.
+Please refer to the [OpenSceneFlow](https://github.com/KTH-RPL/OpenSceneFlow/tree/main?tab=readme-ov-file#4-visualization) for visualization instructions. Tip: when you run/evaluate 
+DoGFlow you can set `visualize=True` to enable rerun
 
-Since in training, we save all hyper-parameters and model checkpoints, the only thing you need to do is to specify the checkpoint path. Remember to set the data path correctly also.
 
-```bash
-# it will directly prints all metric
-python eval.py checkpoint=/home/kin/seflow_best.ckpt av2_mode=val
-
-# it will output the av2_submit.zip or av2_submit_v2.zip for you to submit to leaderboard
-python eval.py checkpoint=/home/kin/seflow_best.ckpt av2_mode=test leaderboard_version=1
-python eval.py checkpoint=/home/kin/seflow_best.ckpt av2_mode=test leaderboard_version=2
+## Cite & Acknowledgements
 ```
-
-To submit to the Online Leaderboard, if you select `av2_mode=test`, it should be a zip file for you to submit to the leaderboard.
-Note: The leaderboard result in DeFlow&SeFlow main paper is [version 1](https://eval.ai/web/challenges/challenge-page/2010/evaluation), as [version 2](https://eval.ai/web/challenges/challenge-page/2210/overview) is updated after DeFlow&SeFlow.
-
-```bash
-# since the env may conflict we set new on deflow, we directly create new one:
-mamba create -n py37 python=3.7
-mamba activate py37
-pip install "evalai"
-
-# Step 2: login in eval and register your team
-evalai set-token <your token>
-
-# Step 3: Copy the command pop above and submit to leaderboard
-evalai challenge 2010 phase 4018 submit --file av2_submit.zip --large --private
-evalai challenge 2210 phase 4396 submit --file av2_submit_v2.zip --large --private
+@article{khoche2026dogflow,
+  author={Khoche, Ajinkya and Zhang, Qingwen and Cai, Yixi and Mansouri, Sina Sharif and Jensfelt, Patric},
+  journal={IEEE Robotics and Automation Letters}, 
+  title={DoGFlow: Self-Supervised LiDAR Scene Flow via Cross-Modal Doppler Guidance}, 
+  year={2026},
+  volume={11},
+  number={3},
+  pages={3836-3843},
+  doi={10.1109/LRA.2026.3662592}
+}
 ```
+This work was supported by Prosense (2020-02963) funded by Vinnova. The computations were enabled by the supercomputing resource Berzelius provided by National Supercomputer Centre at Linköping University and the Knut and Alice Wallenberg Foundation, Sweden.
 
-## 4. Visualization
-
-We provide a script to visualize the results of the model also. You can specify the checkpoint path and the data path to visualize the results. The step is quite similar to evaluation.
-
-```bash
-python save.py checkpoint=/home/kin/seflow_best.ckpt dataset_path=/home/kin/data/av2/preprocess_v2/sensor/vis
-
-# The output of above command will be like:
-Model: DeFlow, Checkpoint from: /home/kin/model_zoo/v2/seflow_best.ckpt
-We already write the flow_est into the dataset, please run following commend to visualize the flow. Copy and paste it to your terminal:
-python tools/visualization.py --res_name 'seflow_best' --data_dir /home/kin/data/av2/preprocess_v2/sensor/vis
-Enjoy! ^v^ ------ 
-
-# Then run the command in the terminal:
-python tools/visualization.py --res_name 'seflow_best' --data_dir /home/kin/data/av2/preprocess_v2/sensor/vis
-```
-
-https://github.com/user-attachments/assets/f031d1a2-2d2f-4947-a01f-834ed1c146e6
-
-
-## Acknowledgement
-
-These work were partially supported by the Wallenberg AI, Autonomous Systems and Software Program (WASP) funded by the Knut and Alice Wallenberg Foundation and Prosense (2020-02963) funded by Vinnova. 
-The computations were enabled by the supercomputing resource Berzelius provided by National Supercomputer Centre at Linköping University and the Knut and Alice Wallenberg Foundation, Sweden.
-
-<!-- *OpenSceneFlow* is designed by [Qingwen Zhang](https://kin-zhang.github.io/). It  -->
-
-❤️: Evaluation Metric from [BucketedSceneFlowEval](https://github.com/kylevedder/BucketedSceneFlowEval); README reference from [Pointcept](https://github.com/Pointcept/Pointcept); Many thanks to [ZeroFlow](https://github.com/kylevedder/zeroflow) ...
+We thank the authors of [NSFP](https://github.com/Lilac-Lee/Neural_Scene_Flow_Prior), [FastNSF](https://github.com/Lilac-Lee/FastNSF) and [ICPFlow](https://github.com/yanconglin/ICP-Flow) for making their code publicly available. Thanks to [Qingwen Zhang](https://kin-zhang.github.io/) for integrating these methods into OpenSceneFlow

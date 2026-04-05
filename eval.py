@@ -34,17 +34,23 @@ def main(cfg):
     pl.seed_everything(cfg.seed, workers=True)
     output_dir = HydraConfig.get().runtime.output_dir
     
-    if not os.path.exists(cfg.checkpoint):
+    if not os.path.exists(cfg.checkpoint) and cfg.model.name not in ['nsfp', 'fastkernel', 'icpflow', 'fastnsf', 'dogflow']:
         print(f"Checkpoint {cfg.checkpoint} does not exist. Need checkpoints for evaluation.")
         sys.exit(1)
         
-    torch_load_ckpt = torch.load(cfg.checkpoint)
-    checkpoint_params = DictConfig(torch_load_ckpt["hyper_parameters"])
-    cfg.output = checkpoint_params.cfg.output + f"-e{torch_load_ckpt['epoch']}-{cfg.av2_mode}-v{cfg.leaderboard_version}"
-    cfg.model.update(checkpoint_params.cfg.model)
-    
-    mymodel = ModelWrapper.load_from_checkpoint(cfg.checkpoint, cfg=cfg, eval=True)
-    print(f"\n---LOG[eval]: Loaded model from {cfg.checkpoint}. The backbone network is {checkpoint_params.cfg.model.name}.\n")
+    if cfg.checkpoint is not None and cfg.model.name not in ['nsfp', 'fastkernel', 'icpflow', 'fastnsf', 'dogflow']:
+        torch_load_ckpt = torch.load(cfg.checkpoint)
+        checkpoint_params = DictConfig(torch_load_ckpt["hyper_parameters"])
+        cfg.output = checkpoint_params.cfg.output + f"-e{torch_load_ckpt['epoch']}-{cfg.av2_mode}-v{cfg.leaderboard_version}"
+        cfg.model.update(checkpoint_params.cfg.model)
+        mymodel = ModelWrapper.load_from_checkpoint(cfg.checkpoint, cfg=cfg, eval=True)
+        print(f"\n---LOG[eval]: Loaded model from {cfg.checkpoint}. The backbone network is {checkpoint_params.cfg.model.name}.\n")
+    else:
+        # runtime optimization
+        checkpoint_params = DictConfig({})
+        cfg.output = cfg.output + f"-{cfg.av2_mode}-v{cfg.leaderboard_version}"
+        mymodel = ModelWrapper(cfg)
+        print(f"\n---LOG[eval]: Created {cfg.model.name} model.\n")
 
     wandb_logger = WandbLogger(save_dir=output_dir,
                                entity="kth-rpl",
@@ -54,12 +60,19 @@ def main(cfg):
     
     trainer = pl.Trainer(logger=wandb_logger, devices=1)
     # NOTE(Qingwen): search & check: def eval_only_step_(self, batch, res_dict)
+    if cfg in checkpoint_params and 'num_frames' in checkpoint_params.cfg:
+        n_frames = checkpoint_params.cfg.num_frames
+    else:
+        n_frames = 2
+    
     trainer.validate(model = mymodel, \
                      dataloaders = DataLoader( \
                                             HDF5Dataset(cfg.dataset_path + f"/{cfg.av2_mode}", \
-                                                        n_frames=checkpoint_params.cfg.num_frames  if 'num_frames' in checkpoint_params.cfg else 2, \
-                                                        eval=True, leaderboard_version=cfg.leaderboard_version), \
-                                            batch_size=1, shuffle=False))
+                                                        n_frames=n_frames, \
+                                                        eval=True, leaderboard_version=cfg.leaderboard_version, \
+                                                        weather=cfg.weather), \
+                                                        batch_size=1, shuffle=False, \
+                                                        ))
     wandb.finish()
 
 if __name__ == "__main__":

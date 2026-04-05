@@ -234,16 +234,30 @@ def flow_to_rgb(
 
 
 class HDF5Data:
-    def __init__(self, directory, flow_view=False, vis_name="flow"):
+    def __init__(self, directory, flow_view=False, vis_name=["flow"], weather='all_weather'):
         '''
         directory: the directory of the dataset
         t_x: how many past frames we want to extract
         '''
         self.flow_view = flow_view
-        self.vis_name = vis_name
+        self.vis_name = vis_name if isinstance(vis_name, list) else [vis_name]
         self.directory = directory
         with open(os.path.join(self.directory, 'index_total.pkl'), 'rb') as f:
             self.data_index = pickle.load(f)
+        
+        # read meta index
+        if os.path.exists(os.path.join(self.directory, 'meta_index.pkl')):
+            with open(os.path.join(self.directory, 'meta_index.pkl'), 'rb') as f:
+                meta_index = pickle.load(f)
+            
+            # filter according to the weather condition
+            if weather != 'all_weather':
+                if weather == 'bad_weather':
+                    bad_weather_tags = ['rain', 'snow', 'fog', 'hail', 'other_weather']
+                    # filter out the scenes that have either of the bad weather tags
+                    self.data_index = [item for item in self.data_index if any(tag in meta_index[item[0]] for tag in bad_weather_tags)]
+                else:
+                    self.data_index = [item for item in self.data_index if weather in meta_index[item[0]]]
 
         self.scene_id_bounds = {}  # 存储每个scene_id的最大最小timestamp和位置
         for idx, (scene_id, timestamp) in enumerate(self.data_index):
@@ -268,10 +282,10 @@ class HDF5Data:
     def __len__(self):
         return len(self.data_index)
     
-    def __getitem__(self, index):
+    def __getitem__(self, index, force=False):
         scene_id, timestamp = self.data_index[index]
         # to make sure we have continuous frames for flow view
-        if self.flow_view and self.scene_id_bounds[scene_id]["max_index"] == index:
+        if self.flow_view and self.scene_id_bounds[scene_id]["max_index"] == index and not force:
             index = index - 1
             scene_id, timestamp = self.data_index[index]
 
@@ -285,17 +299,60 @@ class HDF5Data:
             data_dict['pc0'] = f[key]['lidar'][:]
             data_dict['gm0'] = f[key]['ground_mask'][:]
             data_dict['pose0'] = f[key]['pose'][:]
-            for flow_key in [self.vis_name, 'dufo_label', 'label']:
+
+            if 'radar' in f[key].keys():
+                data_dict['radar0'] = f[key]['radar'][:]
+                data_dict['radar0_id'] = f[key]['radar_id'][:]
+                data_dict['radar0_rcs'] = f[key]['radar_rcs'][:]
+                data_dict['radar0_to_refego_tf'] = f[key]['radar_to_refego_tf'][:]
+                data_dict['radar0_flow'] = f[key]['radar_flow'][:]
+                data_dict['radar0_flow_raw'] = f[key]['radar_flow_raw'][:]
+            if 'cam' in f[key].keys():
+                data_dict['cam0'] = f[key]['cam'][:]
+                data_dict['cam0_size'] = f[key]['cam_size'][:]
+                data_dict['cam0_intrinsic'] = f[key]['cam_intrinsic'][:]
+                data_dict['cam0_to_refego_tf'] = f[key]['cam_to_refego_tf'][:]
+            
+            if 'ego_motion' in f[key]:
+                data_dict['ego_motion'] = f[key]['ego_motion'][:]
+            if 'velocity_gt' in f[key]:
+                data_dict['velocity_gt'] = f[key]['velocity_gt'][:]
+
+            for flow_key in self.vis_name + ['dufo_label', 'label']:
                 if flow_key in f[key]:
                     data_dict[flow_key] = f[key][flow_key][:]
 
-            if self.flow_view:
+            if self.flow_view and not force:
                 next_timestamp = str(self.data_index[index+1][1])
                 data_dict['pose1'] = f[next_timestamp]['pose'][:]
                 data_dict['pc1'] = f[next_timestamp]['lidar'][:]
                 data_dict['gm1'] = f[next_timestamp]['ground_mask'][:]
+                if 'noise' in f[next_timestamp]:
+                    data_dict['noise1'] = f[next_timestamp]['noise'][:]
+                if 'pc_cluster_label' in f[next_timestamp]:
+                    data_dict['pc1_cluster_label'] = f[next_timestamp]['pc_cluster_label'][:].astype(np.int16)
+                if 'pc_dynamic_mask' in f[next_timestamp]:
+                    data_dict['pc1_dynamic_mask'] = f[next_timestamp]['pc_dynamic_mask'][:].astype(np.bool_)
             elif self.flow_view:
                 print(f"[Warning]: No {self.vis_name} in {scene_id} at {timestamp}, check the data.")
+            
+            if 'radar_dynamic_mask' in f[key]:
+                data_dict['radar0_dynamic_mask'] = f[key]['radar_dynamic_mask'][:].astype(np.bool_)
+            if 'pc_dynamic_mask' in f[key]:
+                data_dict['pc0_dynamic_mask'] = f[key]['pc_dynamic_mask'][:].astype(np.bool_)
+            if 'pc_associated_radar' in f[key]:
+                data_dict['pc0_associated_radar'] = f[key]['pc_associated_radar'][:].astype(np.int16)
+            if 'pc_cluster_label' in f[key]:
+                data_dict['pc0_cluster_label'] = f[key]['pc_cluster_label'][:].astype(np.int16)
+            if 'noise' in f[key]:
+                data_dict['noise0'] = f[key]['noise'][:].astype(np.bool_)
+            if 'noise_associated_pc' in f[key]:
+                data_dict['noise0_associated_pc'] = f[key]['noise_associated_pc'][:].astype(np.int32)
+            if 'pc_pseudo_flow' in f[key]:
+                data_dict['pc_pseudo_flow'] = f[key]['pc_pseudo_flow'][:].astype(np.float32)
+            if 'doppler_flow' in f[key]:
+                data_dict['doppler_flow'] = f[key]['doppler_flow'][:].astype(np.float32)
+            
         return data_dict
     
 from av2.geometry.se3 import SE3

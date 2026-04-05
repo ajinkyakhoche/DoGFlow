@@ -27,18 +27,27 @@ def main(cfg):
     pl.seed_everything(cfg.seed, workers=True)
     output_dir = HydraConfig.get().runtime.output_dir
 
-    if not os.path.exists(cfg.checkpoint):
+    if not os.path.exists(cfg.checkpoint) and cfg.model.name not in ['nsfp', 'nsfp_doppler', 'fastkernel', 'icpflow', 'fastnsf', 'dogflow']:
         print(f"Checkpoint {cfg.checkpoint} does not exist. Need checkpoints for evaluation.")
         sys.exit(1)
 
-    if cfg.res_name is None:
-        cfg.res_name = cfg.checkpoint.split("/")[-1].split(".")[0]
-        print(f"{bc.BOLD}NOTE{bc.ENDC}: res_name is not specified, use {bc.OKBLUE}{cfg.res_name}{bc.ENDC} as default.")
-
-    checkpoint_params = DictConfig(torch.load(cfg.checkpoint)["hyper_parameters"])
-    cfg.output = checkpoint_params.cfg.output
-    cfg.model.update(checkpoint_params.cfg.model)
-    mymodel = ModelWrapper.load_from_checkpoint(cfg.checkpoint, cfg=cfg, eval=True)
+    if cfg.checkpoint is not None and cfg.model.name not in ['nsfp', 'nsfp_doppler', 'fastkernel', 'icpflow', 'fastnsf', 'dogflow']:
+        if cfg.res_name is None:
+            cfg.res_name = cfg.checkpoint.split("/")[-1].split(".")[0]
+            print(f"{bc.BOLD}NOTE{bc.ENDC}: res_name is not specified, use {bc.OKBLUE}{cfg.res_name}{bc.ENDC} as default.")
+        checkpoint_params = DictConfig(torch.load(cfg.checkpoint)["hyper_parameters"])
+        cfg.output = checkpoint_params.cfg.output
+        cfg.model.update(checkpoint_params.cfg.model)
+        mymodel = ModelWrapper.load_from_checkpoint(cfg.checkpoint, cfg=cfg, eval=True)
+    else:
+        # runtime optimization
+        if cfg.res_name is None:
+            cfg.res_name = cfg.model.name
+            print(f"{bc.BOLD}NOTE{bc.ENDC}: res_name is not specified, use {bc.OKBLUE}{cfg.res_name}{bc.ENDC} as default.")
+        checkpoint_params = DictConfig({})
+        cfg.output = cfg.output #+ f"-{cfg.av2_mode}-v{cfg.leaderboard_version}"
+        mymodel = ModelWrapper(cfg)
+        print(f"\n---LOG[eval]: Created {cfg.model.name} model.\n")
 
     wandb_logger = WandbLogger(save_dir=output_dir,
                                entity="kth-rpl",
@@ -48,9 +57,14 @@ def main(cfg):
     
     trainer = pl.Trainer(logger=wandb_logger, devices=1)
     # NOTE(Qingwen): search & check in pl_model.py : def test_step(self, batch, res_dict)
+    if cfg in checkpoint_params and 'num_frames' in checkpoint_params.cfg:
+        n_frames = checkpoint_params.cfg.num_frames
+    else:
+        n_frames = 2
+    
     trainer.test(model = mymodel, \
                  dataloaders = DataLoader(\
-                     HDF5Dataset(cfg.dataset_path, n_frames=checkpoint_params.cfg.num_frames if 'num_frames' in checkpoint_params.cfg else 2), \
+                     HDF5Dataset(cfg.dataset_path, n_frames=n_frames, save=True, weather=cfg.weather), \
                     batch_size=1, shuffle=False))
     wandb.finish()
 
